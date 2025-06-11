@@ -130,7 +130,7 @@ else:
 
         # 📝 Вивчення слів
         st.subheader("📝 Вивчення слів")
-        user_id = st.text_input("Введіть ваш ID", "1")
+        user_id = st.session_state.user_id
         
         # Вибір рівня складності
         difficulty = st.selectbox("Оберіть рівень складності", ["easy", "medium", "hard"], 
@@ -140,29 +140,48 @@ else:
         if difficulty != st.session_state.current_difficulty:
             st.session_state.current_difficulty = difficulty
             st.session_state.current_words = []
+            st.session_state.add_word_mode = False
             st.rerun()
 
-        if st.button("Завантажити слова") or not st.session_state.current_words:
-            try:
-                user_id_int = int(user_id)
-                response = requests.get(f"{API_URL}/words/{st.session_state.current_difficulty}")
+        # Автоматичне завантаження слів для поточної групи
+        if not st.session_state.current_words:
+            response = requests.get(f"{API_URL}/words/{st.session_state.current_difficulty}")
+            if response.status_code == 200:
+                st.session_state.current_words = response.json()
 
-                if response.status_code == 200:
-                    st.session_state.current_words = response.json()
-                    if not st.session_state.current_words:
-                        st.warning("⚠️ Немає слів для цього рівня складності.")
-                else:
-                    st.error(f"❌ Помилка завантаження слів: {response.text}")
-
-            except ValueError:
-                st.error("❌ Неправильний ID користувача!")
+        # Додати слово UI
+        if "add_word_mode" not in st.session_state:
+            st.session_state.add_word_mode = False
+        if st.button("Додати слово"):
+            st.session_state.add_word_mode = True
+        if st.session_state.add_word_mode:
+            new_word = st.text_input("Слово", key="add_word_input")
+            new_translation = st.text_input("Переклад", key="add_translation_input")
+            if st.button("Зберегти"):
+                if new_word and new_translation:
+                    add_word_response = requests.post(f"{API_URL}/words/add", json={
+                        "word": new_word,
+                        "translation": new_translation,
+                        "difficulty": st.session_state.current_difficulty
+                    })
+                    if add_word_response.status_code == 200:
+                        st.success("✅ Слово успішно додано!")
+                        st.session_state.add_word_mode = False
+                        # Refresh word list
+                        response = requests.get(f"{API_URL}/words/{st.session_state.current_difficulty}")
+                        if response.status_code == 200:
+                            st.session_state.current_words = response.json()
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Помилка додавання слова: {add_word_response.text}")
+                        st.session_state.add_word_mode = False
+                        st.rerun()
 
         # Показ слів
         if st.session_state.current_words:
             # Fetch user progress for known words
             try:
-                user_id_int = int(user_id)
-                progress_response = requests.get(f"{API_URL}/progress/{user_id_int}")
+                progress_response = requests.get(f"{API_URL}/progress/{user_id}")
                 known_word_ids = set()
                 if progress_response.status_code == 200:
                     progress_data = progress_response.json()
@@ -180,7 +199,7 @@ else:
                     else:
                         if st.button(f"Знаю", key=f"know_{word['id']}"):
                             st.session_state.words_to_update.append({
-                                "user_id": int(user_id),
+                                "user_id": user_id,
                                 "word_id": word["id"],
                                 "known": True
                             })
@@ -200,8 +219,7 @@ else:
         # 📊 Перевірка прогресу
         if st.button("Перевірити прогрес"):
             try:
-                user_id_int = int(user_id)
-                progress_response = requests.get(f"{API_URL}/progress/{user_id_int}")
+                progress_response = requests.get(f"{API_URL}/progress/{user_id}")
 
                 if progress_response.status_code == 200:
                     progress_data = progress_response.json()
@@ -329,11 +347,6 @@ else:
             st.write(f"### Ваш результат: {st.session_state.score}/{len(st.session_state.quiz_words)}")
             percentage = (st.session_state.score / len(st.session_state.quiz_words)) * 100
             st.write(f"Відсоток правильних відповідей: {percentage:.1f}%")
-            # Додаємо відлагоджувальну інформацію
-            st.write("Debug Information:")
-            st.write(f"Username: {st.session_state.get('username', 'Not set')}")
-            st.write(f"User ID: {st.session_state.get('user_id', 'Not set')}")
-            st.write(f"Role: {st.session_state.get('role', 'Not set')}")
             # Зберігаємо результати вікторини лише якщо ще не збережено
             if not st.session_state.get('quiz_result_submitted', False):
                 if st.session_state.user_id is None:
@@ -380,9 +393,10 @@ else:
         if st.session_state.username:
             try:
                 # Додаємо відлагоджувальну інформацію
-                st.write("Debug Information:")
-                st.write(f"Username: {st.session_state.get('username', 'Not set')}")
-                st.write(f"User ID: {st.session_state.get('user_id', 'Not set')}")
+                # st.write("Debug Information:")
+                # st.write(f"Username: {st.session_state.get('username', 'Not set')}")
+                # st.write(f"User ID: {st.session_state.get('user_id', 'Not set')}")
+                # st.write(f"Role: {st.session_state.get('role', 'Not set')}")
                 
                 # Спочатку перевіряємо, чи існує користувач
                 test_response = requests.get(f"{API_URL}/test-stats/{st.session_state.username}")
