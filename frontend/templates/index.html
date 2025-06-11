@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вивчення слів</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <h1>Програма для вивчення слів</h1>
+    <p>Оберіть рівень складності та почніть навчання!</p>
+    <select id="difficulty">
+        <option value="easy">Легкий</option>
+        <option value="medium">Середній</option>
+        <option value="hard">Складний</option>
+    </select>
+    <button onclick="getWords()">Отримати слова</button>
+    <div id="words-container"></div>
+
+    <script>
+        async function getWords() {
+            let difficulty = document.getElementById("difficulty").value;
+            let response = await fetch(`/words/${difficulty}`);
+            let words = await response.json();
+            let container = document.getElementById("words-container");
+            container.innerHTML = "";
+            words.forEach(word => {
+                let div = document.createElement("div");
+                div.innerHTML = `<p>${word.word} - ${word.translation}</p>
+                                 <button onclick="markAsKnown(${word.id})">Я знаю</button>`;
+                container.appendChild(div);
+            });
+        }
+
+        async function markAsKnown(wordId) {
+            await fetch("/progress/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id: 1, word_id: wordId, known: true })
+            });
+            alert("Слово додано у вивчені!");
+        }
+    </script>
+</body>
+</html>
